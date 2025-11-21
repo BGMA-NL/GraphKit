@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Version>3.0.3</Version>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <GenerateDocumentationFile>False</GenerateDocumentationFile>
+    <IncludeSymbols>True</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <Authors>BGMA</Authors>
+    <Description>A dropin replacement for NetCore.MailKit to use the Microsoft Graph API instead of SMTP</Description>
+    <Copyright>2022-2023</Copyright>
+    <PackageProjectUrl>https://dev.azure.com/bgma-nl/Graph%20kit</PackageProjectUrl>
+    <RepositoryUrl>https://dev.azure.com/bgma-nl/Graph%20kit</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>Mail,Graph</PackageTags>
+    <PackAsTool>False</PackAsTool>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Azure.Identity" Version="1.17.1" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+		<PackageReference Include="Microsoft.Graph" Version="5.97.0" />
+		<PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" Version="8.0.0" PrivateAssets="all" />
+	</ItemGroup>
+</Project>
