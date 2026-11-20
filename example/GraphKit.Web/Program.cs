@@ -6,7 +6,10 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 
-builder.Services.AddGraphKit(options => options.UseGraphKit(builder.Configuration.GetSection("mail").Get<GraphKitOptions>()));
+var config = builder.Configuration.GetSection("mail").Get<GraphKitOptions>();
+
+if (config is not null)
+    builder.Services.AddGraphKit(options => options.UseGraphKit(config));
 
 var app = builder.Build();
 
