@@ -27,39 +27,67 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # Major.minor come from <Version> in the csproj. The patch number is the
-      # latest v<major>.<minor>.* tag + 1 (or the csproj value if none exists).
+      # SemVer from Conventional Commits since the latest v* tag:
+      #   type!: / BREAKING CHANGE footer -> major
+      #   feat                            -> minor
+      #   fix, perf                       -> patch
+      # Anything else (chore, ci, docs, refactor, test) does not release.
       - name: Compute version
         id: version
         run: |
-          base=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/GraphKit/GraphKit.csproj | head -n1)
-          mm="${base%.*}"
-          last=$(git tag --list "v${mm}.*" --sort=-v:refname | head -n1)
+          last=$(git tag --list 'v*' --sort=-v:refname | head -n1)
           if [ -z "$last" ]; then
-            version="$base"
-          else
-            patch="${last##*.}"
-            version="${mm}.$((patch + 1))"
+            echo "No v* tag found, publishing csproj version as the initial release"
+            version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/GraphKit/GraphKit.csproj | head -n1)
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          subjects=$(git log "$last..HEAD" --format='%s')
+          bodies=$(git log "$last..HEAD" --format='%b')
+          if echo "$subjects" | grep -qE '^[a-z]+(\([^)]*\))?!:' || echo "$bodies" | grep -qE '^BREAKING[ -]CHANGE'; then
+            bump=major
+          elif echo "$subjects" | grep -qE '^feat(\([^)]*\))?:'; then
+            bump=minor
+          elif echo "$subjects" | grep -qE '^(fix|perf)(\([^)]*\))?:'; then
+            bump=patch
+          else
+            echo "No releasable commits since $last"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          IFS=. read -r major minor patch <<< "${last#v}"
+          case "$bump" in
+            major) version="$((major + 1)).0.0" ;;
+            minor) version="${major}.$((minor + 1)).0" ;;
+            patch) version="${major}.${minor}.$((patch + 1))" ;;
+          esac
+          echo "release=true" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Publishing $version"
+          echo "Releasing $version ($bump bump from $last)"
 
-      - run: dotnet restore src/GraphKit/GraphKit.csproj
-      - run: dotnet build src/GraphKit/GraphKit.csproj -c Release --no-restore -p:Version=${{ steps.version.outputs.version }} -p:GeneratePackageOnBuild=false
-      - run: dotnet pack src/GraphKit/GraphKit.csproj -c Release --no-build -p:Version=${{ steps.version.outputs.version }} -o artifacts
+      - if: steps.version.outputs.release == 'true'
+        run: dotnet restore src/GraphKit/GraphKit.csproj
+      - if: steps.version.outputs.release == 'true'
+        run: dotnet build src/GraphKit/GraphKit.csproj -c Release --no-restore -p:Version=${{ steps.version.outputs.version }} -p:GeneratePackageOnBuild=false
+      - if: steps.version.outputs.release == 'true'
+        run: dotnet pack src/GraphKit/GraphKit.csproj -c Release --no-build -p:Version=${{ steps.version.outputs.version }} -o artifacts
 
       - name: NuGet login (trusted publishing)
+        if: steps.version.outputs.release == 'true'
         id: login
         uses: NuGet/login@v1
         with:
           user: ${{ vars.NUGET_USER }}
 
       - name: Push to NuGet
+        if: steps.version.outputs.release == 'true'
         run: dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
         env:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
 
       - name: Tag and release
+        if: steps.version.outputs.release == 'true'
         run: gh release create "v${{ steps.version.outputs.version }}" artifacts/* --generate-notes --target "$GITHUB_SHA"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
