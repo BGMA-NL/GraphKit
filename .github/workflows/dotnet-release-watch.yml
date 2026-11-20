@@ -1,0 +1,44 @@
+name: .NET release watch
+
+on:
+  schedule:
+    - cron: "0 7 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Opens one "Support .NET N" issue for every stable .NET major (LTS and STS)
+      # newer than the highest target framework in the csproj. Skips versions that
+      # already have an issue, open or closed.
+      - name: Check for new .NET versions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          current=$(grep -E '<TargetFrameworks?>' src/GraphKit/GraphKit.csproj | grep -oE 'net[0-9]+\.0' | sed -E 's/net([0-9]+)\.0/\1/' | sort -n | tail -n1)
+          echo "Highest target framework: net${current}.0"
+
+          curl -fsS https://dotnetcli.blob.core.windows.net/dotnet/release-metadata/releases-index.json \
+            | jq -r '."releases-index"[] | select(."support-phase" == "active" or ."support-phase" == "maintenance") | "\(."channel-version")|\(."release-type")|\(."latest-release-date")"' \
+            | while IFS='|' read -r channel type released; do
+                major="${channel%%.*}"
+                [ "$major" -gt "$current" ] || continue
+                title="Support .NET ${major}"
+                if [ -n "$(gh issue list --state all --search "\"$title\" in:title" --json title --jq ".[] | select(.title == \"$title\") | .title")" ]; then
+                  echo "Issue already exists: $title"
+                  continue
+                fi
+                body="$(printf '.NET %s (%s) is out, released %s.\n\nEvery .NET version should have a GraphKit release that supports it.\n\n- [ ] Add `net%s.0` to `<TargetFrameworks>` in `src/GraphKit/GraphKit.csproj`, keeping the existing frameworks so older consumers are not dropped\n- [ ] Use per-framework `PackageReference` conditions for `Microsoft.Extensions.*` and `Microsoft.AspNetCore.*` (their major version follows the target framework)\n- [ ] Add `%s.0.x` to the `dotnet-version` list in the workflows\n- [ ] Update `example/GraphKit.Web` if desired\n- [ ] Merge with a `feat:` commit so a minor version is released\n\nOpened automatically by `.github/workflows/dotnet-release-watch.yml`.' "$major" "$type" "$released" "$major" "$major")"
+                if [ -n "$DRY_RUN" ]; then
+                  echo "DRY RUN would open: $title"
+                else
+                  gh issue create --title "$title" --body "$body"
+                fi
+              done
