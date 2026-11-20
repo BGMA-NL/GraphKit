@@ -1,0 +1,65 @@
+name: Publish to NuGet
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - ".github/workflows/publish.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Major.minor come from <Version> in the csproj. The patch number is the
+      # latest v<major>.<minor>.* tag + 1 (or the csproj value if none exists).
+      - name: Compute version
+        id: version
+        run: |
+          base=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/GraphKit/GraphKit.csproj | head -n1)
+          mm="${base%.*}"
+          last=$(git tag --list "v${mm}.*" --sort=-v:refname | head -n1)
+          if [ -z "$last" ]; then
+            version="$base"
+          else
+            patch="${last##*.}"
+            version="${mm}.$((patch + 1))"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Publishing $version"
+
+      - run: dotnet restore src/GraphKit/GraphKit.csproj
+      - run: dotnet build src/GraphKit/GraphKit.csproj -c Release --no-restore -p:Version=${{ steps.version.outputs.version }} -p:GeneratePackageOnBuild=false
+      - run: dotnet pack src/GraphKit/GraphKit.csproj -c Release --no-build -p:Version=${{ steps.version.outputs.version }} -o artifacts
+
+      - name: NuGet login (trusted publishing)
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Push to NuGet
+        run: dotnet nuget push "artifacts/*.nupkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+
+      - name: Tag and release
+        run: gh release create "v${{ steps.version.outputs.version }}" artifacts/* --generate-notes --target "$GITHUB_SHA"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
