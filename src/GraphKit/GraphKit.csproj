@@ -34,8 +34,8 @@
     <None Include="..\..\LICENSE" Pack="true" PackagePath="\" />
 		<PackageReference Include="Azure.Identity" Version="1.21.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.15" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.15" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0" />
 		<PackageReference Include="Microsoft.Graph" Version="6.10.0" />
-		<PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" Version="10.0.404" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" Version="11.0.100" PrivateAssets="all" />
 	</ItemGroup>
 </Project>
