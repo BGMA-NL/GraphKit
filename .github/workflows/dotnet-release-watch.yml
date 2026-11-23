@@ -13,7 +13,7 @@ jobs:
   watch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Opens one "Support .NET N" issue for every stable .NET major (LTS and STS)
       # newer than the highest target framework in the csproj. Skips versions that
